@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip3 list:*)",
+      "Bash(pip3 install:*)",
+      "Bash(pip3 show:*)",
+      "Bash(python3 -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(/Users/ztt/Library/Python/3.9/bin/pip3 install:*)",
+      "Bash(/Users/ztt/Library/Python/3.9/bin/pip3 show:*)",
+      "Bash(python3:*)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(kill 8803)",
+      "Bash(kill 10907)"
+    ]
+  }
+}

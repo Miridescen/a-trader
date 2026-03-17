@@ -1,0 +1,109 @@
+/Users/ztt/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+16:15:17 [INFO] === 拉取股票日线行情 ===
+16:15:17 [INFO]   待处理股票数: 5489
+16:26:01 [INFO]   进度: 200/5489 (3.6%)
+16:37:54 [INFO]   进度: 400/5489 (7.3%)
+16:46:28 [INFO]   进度: 600/5489 (10.9%)
+16:57:36 [INFO]   进度: 800/5489 (14.6%)
+17:07:23 [INFO]   进度: 1000/5489 (18.2%)
+17:16:32 [INFO]   进度: 1200/5489 (21.9%)
+17:26:14 [INFO]   进度: 1400/5489 (25.5%)
+17:35:21 [INFO]   进度: 1600/5489 (29.1%)
+17:46:22 [INFO]   进度: 1800/5489 (32.8%)
+17:53:12 [WARNING]   300462.SZ 失败: (sqlite3.OperationalError) database is locked
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1145, in _commit_impl
+    self.engine.dialect.do_commit(self.connection)
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/default.py", line 715, in do_commit
+    dbapi_connection.commit()
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/ztt/a-trader/data/pipeline.py", line 165, in fetch_stock_daily
+    rows = _upsert(engine, stock_daily, df, ["ts_code", "trade_date"])
+  File "/Users/ztt/a-trader/data/pipeline.py", line 49, in _upsert
+    conn.execute(table.insert(), row_dict)
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/contextlib.py", line 124, in __exit__
+    next(self.gen)
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 3259, in begin
+    yield conn
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/util.py", line 149, in __exit__
+    self.rollback()
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/util/langhelpers.py", line 121, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/util.py", line 145, in __exit__
+    self.commit()
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 2640, in commit
+    self._do_commit()
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 2745, in _do_commit
+    self._connection_commit_impl()
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 2716, in _connection_commit_impl
+    self.connection._commit_impl()
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1147, in _commit_impl
+    self._handle_dbapi_exception(e, None, None, None, None)
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1145, in _commit_impl
+    self.engine.dialect.do_commit(self.connection)
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/default.py", line 715, in do_commit
+    dbapi_connection.commit()
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) database is locked
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1145, in _commit_impl
+    self.engine.dialect.do_commit(self.connection)
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/default.py", line 715, in do_commit
+    dbapi_connection.commit()
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/Users/ztt/a-trader/data/pipeline.py", line 248, in <module>
+    main()
+  File "/Users/ztt/a-trader/data/pipeline.py", line 242, in main
+    tasks[args.task]()
+  File "/Users/ztt/a-trader/data/pipeline.py", line 230, in <lambda>
+    "stock_daily": lambda: fetch_stock_daily(engine, args.code, args.limit),
+  File "/Users/ztt/a-trader/data/pipeline.py", line 172, in fetch_stock_daily
+    _save_log(engine, "stock_daily", code, None, 0, "error", str(e))
+  File "/Users/ztt/a-trader/data/pipeline.py", line 72, in _save_log
+    conn.execute(fetch_log.insert(), {
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/contextlib.py", line 124, in __exit__
+    next(self.gen)
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 3259, in begin
+    yield conn
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/util.py", line 149, in __exit__
+    self.rollback()
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/util/langhelpers.py", line 121, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/util.py", line 145, in __exit__
+    self.commit()
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 2640, in commit
+    self._do_commit()
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 2745, in _do_commit
+    self._connection_commit_impl()
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 2716, in _connection_commit_impl
+    self.connection._commit_impl()
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1147, in _commit_impl
+    self._handle_dbapi_exception(e, None, None, None, None)
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1145, in _commit_impl
+    self.engine.dialect.do_commit(self.connection)
+  File "/Users/ztt/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/default.py", line 715, in do_commit
+    dbapi_connection.commit()
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) database is locked
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[DB] 初始化完成: sqlite:////Users/ztt/a-trader/data/market.db
