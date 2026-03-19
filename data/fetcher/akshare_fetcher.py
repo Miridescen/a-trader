@@ -172,16 +172,36 @@ def get_financial_indicator(symbol: str) -> pd.DataFrame:
         return df
 
     col_map = {
-        "报告期":     "end_date",
-        "净资产收益率": "roe",
-        "每股收益":    "eps",
-        "净利润增长率": "netprofit_yoy",
-        "营业总收入增长率": "tr_yoy",
-        "毛利率":     "grossprofit_margin",
-        "资产负债率":  "debt_to_assets",
+        "报告期":           "end_date",
+        "净资产收益率":      "roe",
+        "净资产收益率-加权": "roe",
+        "每股收益":          "eps",
+        "基本每股收益":      "eps",
+        "净利润增长率":      "netprofit_yoy",
+        "净利润同比增长率":  "netprofit_yoy",
+        "营业总收入增长率":  "tr_yoy",
+        "营业总收入同比增长率": "tr_yoy",
+        "毛利率":            "grossprofit_margin",
+        "销售净利率":        "grossprofit_margin",
+        "资产负债率":        "debt_to_assets",
     }
     df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
     df["ts_code"] = f"{symbol}.SH" if symbol.startswith("6") else f"{symbol}.SZ"
+
+    # end_date 清洗：整数年份 → YYYY-12-31，字符串日期直接转
+    def _parse_date(v):
+        try:
+            v = str(v).strip()
+            if len(v) == 4 and v.isdigit():
+                return pd.Timestamp(f"{v}-12-31")
+            return pd.Timestamp(v)
+        except Exception:
+            return pd.NaT
+
+    df["end_date"] = df["end_date"].apply(_parse_date)
+    df = df.dropna(subset=["end_date"])
+    df = df[df["end_date"] >= pd.Timestamp("2010-01-01")]
+    df["end_date"] = df["end_date"].dt.date
 
     # 数值清洗：去掉 %
     for col in ["roe", "netprofit_yoy", "tr_yoy", "grossprofit_margin", "debt_to_assets"]:

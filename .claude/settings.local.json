@@ -10,7 +10,9 @@
       "Bash(python3:*)",
       "Bash(echo \"EXIT:$?\")",
       "Bash(kill 8803)",
-      "Bash(kill 10907)"
+      "Bash(kill 10907)",
+      "Bash(kill 87148)",
+      "Bash(sqlite3:*)"
     ]
   }
 }

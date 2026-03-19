@@ -15,8 +15,9 @@ from data.storage.db import init_db
 from backtest.data_loader import load_price_matrix, load_benchmark
 from backtest.engine import BacktestEngine, TradeConfig
 from backtest.strategies import (
-    momentum_strategy, institution_equal_strategy
+    momentum_strategy, institution_equal_strategy, multi_factor_strategy
 )
+from backtest.factor_builder import build_factor_scores
 from backtest.report import print_report, save_nav_csv, compare_strategies
 
 
@@ -55,6 +56,12 @@ def run_backtest(
     config  = TradeConfig()
     results = {}
 
+    # ── 预构建多因子矩阵（供多因子策略使用）──────────────────
+    factor_scores = None
+    if strategy_name in ("all", "multifactor"):
+        engine_tmp = BacktestEngine(price_df, benchmark, initial_capital, config, freq)
+        factor_scores = build_factor_scores(price_df, engine_tmp._rebal_dates)
+
     # ── 策略1：动量 ───────────────────────────────────────
     if strategy_name in ("all", "momentum"):
         print("\n▶ 运行动量策略...")
@@ -77,6 +84,19 @@ def run_backtest(
             save_nav_csv(port, benchmark, "data/nav_institution.csv")
             results["机构持仓策略"] = port
 
+    # ── 策略3：多因子（财务+动量，无前瞻偏差）───────────────
+    if strategy_name in ("all", "multifactor"):
+        if factor_scores is not None and not factor_scores.empty:
+            print("\n▶ 运行多因子策略（财务+动量，无前瞻偏差）...")
+            engine = BacktestEngine(price_df, benchmark, initial_capital, config, freq)
+            strat  = multi_factor_strategy(factor_scores, top_n=top_n, weight_scheme="equal")
+            port   = engine.run(strat)
+            print_report(port, benchmark, f"多因子策略(Top{top_n})")
+            save_nav_csv(port, benchmark, "data/nav_multifactor.csv")
+            results["多因子策略"] = port
+        else:
+            print("\n⚠ 多因子策略跳过：因子矩阵为空（财务数据不足）")
+
     # ── 多策略对比 ────────────────────────────────────────
     if len(results) > 1:
         print("\n" + "="*60)
@@ -91,7 +111,7 @@ def run_backtest(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="策略回测")
     parser.add_argument("--strategy", default="all",
-                        choices=["all", "momentum", "institution"],
+                        choices=["all", "momentum", "institution", "multifactor"],
                         help="运行的策略")
     parser.add_argument("--start", default="20190101", help="回测开始日期")
     parser.add_argument("--end",   default="20261231", help="回测结束日期")

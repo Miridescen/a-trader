@@ -190,18 +190,33 @@ def fetch_financial_indicator(engine, ts_code: str = "", limit: int = 0):
     if limit:
         stocks = stocks[:limit]
 
+    import time as _time
+    # 已完成的股票
+    with engine.connect() as conn:
+        done = set(r[0] for r in conn.execute(text(
+            "SELECT ts_code FROM fetch_log WHERE task='financial_indicator' AND status='ok'"
+        )).fetchall())
+    log.info(f"  已完成: {len(done)}，待拉取: {len(stocks)-len(done)}")
+
     for i, (code, symbol) in enumerate(stocks):
+        if code in done:
+            continue
         try:
             df = ak_fin_indicator(symbol=symbol)
             if df.empty:
-                continue
-            rows = _upsert(engine, financial_indicator, df, ["ts_code", "end_date"])
-            last = df["end_date"].max() if "end_date" in df.columns else None
-            _save_log(engine, "financial_indicator", code, last, rows)
+                _save_log(engine, "financial_indicator", code, None, 0, "ok", "empty")
+            else:
+                rows = _upsert(engine, financial_indicator, df, ["ts_code", "end_date"])
+                last = df["end_date"].max() if "end_date" in df.columns else None
+                _save_log(engine, "financial_indicator", code, last, rows)
             if (i + 1) % 100 == 0:
-                log.info(f"  进度: {i + 1}/{len(stocks)}")
+                log.info(f"  进度: {i + 1}/{len(stocks)} ({(i+1)/len(stocks)*100:.1f}%)")
         except Exception as e:
             log.warning(f"  {code} 财务数据失败: {e}")
+            _save_log(engine, "financial_indicator", code, None, 0, "error", str(e))
+            _time.sleep(1.0)
+        finally:
+            _time.sleep(0.3)
 
 
 # ══════════════════════════════════════════════════════════
