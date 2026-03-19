@@ -102,6 +102,37 @@ def load_return_matrix(price_df: pd.DataFrame) -> pd.DataFrame:
     return price_df.pct_change()
 
 
+def load_mv_matrix(
+    start_date: str = "20150101",
+    end_date:   str = "20261231",
+) -> pd.DataFrame:
+    """
+    从 daily_basic 加载总市值矩阵（万元）
+    index=日期, columns=ts_code, values=total_mv
+    """
+    engine = get_engine()
+    s = start_date[:4]+"-"+start_date[4:6]+"-"+start_date[6:]
+    e = end_date[:4]+"-"+end_date[4:6]+"-"+end_date[6:]
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT ts_code, trade_date, total_mv
+            FROM daily_basic
+            WHERE trade_date BETWEEN :s AND :e
+              AND total_mv IS NOT NULL
+            ORDER BY trade_date
+        """), {"s": s, "e": e}).fetchall()
+
+    if not rows:
+        print("[数据] daily_basic 无市值数据，请先运行: python -m data.pipeline --task daily_basic")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows, columns=["ts_code", "date", "total_mv"])
+    df["date"] = pd.to_datetime(df["date"])
+    pivot = df.pivot(index="date", columns="ts_code", values="total_mv")
+    print(f"[数据] 市值矩阵: {pivot.shape[0]} 天 × {pivot.shape[1]} 只")
+    return pivot
+
+
 def get_trading_dates(
     start_date: str = "20150101",
     end_date:   str = "20261231",

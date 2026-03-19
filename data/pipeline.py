@@ -25,6 +25,8 @@ from data.fetcher.akshare_fetcher import (
     get_stock_list as ak_stock_list,
     get_stock_daily as ak_stock_daily,
     get_financial_indicator as ak_fin_indicator,
+    get_daily_basic_snapshot as ak_daily_basic_snapshot,
+    get_daily_basic_history as ak_daily_basic_history,
 )
 
 logging.basicConfig(
@@ -220,6 +222,62 @@ def fetch_financial_indicator(engine, ts_code: str = "", limit: int = 0):
 
 
 # ══════════════════════════════════════════════════════════
+# Task 5: 每日市值 & 估值（daily_basic）
+# ══════════════════════════════════════════════════════════
+def fetch_daily_basic(engine, ts_code: str = "", limit: int = 0):
+    """
+    拉取历史每日市值数据，写入 daily_basic 表
+    使用 AKShare stock_a_indicator_lg（乐咕乐股 PE/PB/市值历史）
+    全量约 5000 只股票，每只需单独请求，耗时较长（建议后台运行）
+    """
+    log.info("=== 拉取每日市值数据（daily_basic）===")
+
+    with engine.connect() as conn:
+        result = conn.execute(select(stock_basic.c.ts_code, stock_basic.c.symbol))
+        stocks = result.fetchall()
+
+    if not stocks:
+        log.warning("  股票列表为空，请先运行: python -m data.pipeline --task stock_basic")
+        return
+
+    if ts_code:
+        stocks = [s for s in stocks if s[0] == ts_code]
+    if limit:
+        stocks = stocks[:limit]
+
+    # 已拉取过的跳过（断点续传）
+    with engine.connect() as conn:
+        done = set(r[0] for r in conn.execute(text(
+            "SELECT ts_code FROM fetch_log WHERE task='daily_basic' AND status='ok'"
+        )).fetchall())
+    log.info(f"  已完成: {len(done)}，待拉取: {len(stocks) - len(done)}")
+
+    import time as _time
+    for i, (code, symbol) in enumerate(stocks):
+        if code in done:
+            continue
+
+        start_str = _get_last_date(engine, "daily_basic", code)
+        try:
+            df = ak_daily_basic_history(symbol=symbol, start_date=start_str)
+            if df.empty:
+                _save_log(engine, "daily_basic", code, None, 0, "ok", "empty")
+            else:
+                rows = _upsert(engine, daily_basic, df, ["ts_code", "trade_date"])
+                last = df["trade_date"].max()
+                _save_log(engine, "daily_basic", code, last, rows)
+
+            if (i + 1) % 100 == 0:
+                log.info(f"  进度: {i + 1}/{len(stocks)} ({(i+1)/len(stocks)*100:.1f}%)")
+        except Exception as e:
+            log.warning(f"  {code} 失败: {e}")
+            _save_log(engine, "daily_basic", code, None, 0, "error", str(e))
+            _time.sleep(1.0)
+        finally:
+            _time.sleep(0.5)   # 乐咕乐股限速宽松些
+
+
+# ══════════════════════════════════════════════════════════
 # 入口
 # ══════════════════════════════════════════════════════════
 def main():
@@ -227,7 +285,7 @@ def main():
     parser.add_argument(
         "--task", default="all",
         choices=["all", "index", "stock_basic", "stock_daily",
-                 "financial", "fund"],
+                 "financial", "fund", "daily_basic"],
         help="指定要运行的任务"
     )
     parser.add_argument("--code", default="", help="指定股票代码（用于 stock_daily）")
@@ -244,6 +302,7 @@ def main():
         "stock_basic": lambda: fetch_stock_basic(engine),
         "stock_daily": lambda: fetch_stock_daily(engine, args.code, args.limit),
         "financial":   lambda: fetch_financial_indicator(engine, args.code, args.limit),
+        "daily_basic": lambda: fetch_daily_basic(engine, args.code, args.limit),
     }
 
     if args.task == "all":

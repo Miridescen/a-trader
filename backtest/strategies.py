@@ -124,7 +124,53 @@ def institution_equal_strategy(
 
 
 # ══════════════════════════════════════════════════════════
-# 策略4：价值+质量（财务因子，需历史财务数据）
+# 策略4：微市值策略（20~30亿区间，选最小5只）
+# ══════════════════════════════════════════════════════════
+
+def small_cap_strategy(
+    mv_matrix: pd.DataFrame,   # index=日期, columns=ts_code, values=总市值(万元)
+    top_n:  int   = 5,
+    mv_min: float = 200_000,   # 20亿 = 200,000万
+    mv_max: float = 300_000,   # 30亿 = 300,000万
+):
+    """
+    微市值轮动策略
+    ─────────────────────────────────────────────────────
+    选股规则：总市值在 [mv_min, mv_max] 万元之间，选最小的 top_n 只
+    持仓权重：等权
+    调仓频率：由 BacktestEngine 的 freq 参数决定（传 5 即每5个交易日）
+    """
+    def _strategy(current_date: date, price_hist: pd.DataFrame, context: dict) -> Dict[str, float]:
+        ts_d = pd.Timestamp(current_date)
+
+        # 取当日或最近一期市值（严格 <= 当日，防前瞻）
+        past_dates = mv_matrix.index[mv_matrix.index <= ts_d]
+        if past_dates.empty:
+            return {}
+        mv_row = mv_matrix.loc[past_dates[-1]].dropna()
+
+        # 筛选市值区间
+        filtered = mv_row[(mv_row >= mv_min) & (mv_row <= mv_max)]
+        if filtered.empty:
+            return {}
+
+        # 排除停牌（当日无收盘价）
+        latest_prices = price_hist.iloc[-1].dropna()
+        valid = filtered.index.intersection(latest_prices.index)
+        filtered = filtered.loc[valid]
+        if filtered.empty:
+            return {}
+
+        # 选市值最小的 top_n 只
+        selected = filtered.nsmallest(top_n)
+        n = len(selected)
+        return {ts: 1.0 / n for ts in selected.index}
+
+    return _strategy
+
+
+# ══════════════════════════════════════════════════════════
+# 策略5：价值+质量（财务因子，需历史财务数据）
 # ══════════════════════════════════════════════════════════
 
 def value_quality_strategy(

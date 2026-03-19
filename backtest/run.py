@@ -12,10 +12,11 @@ import pandas as pd
 from datetime import date
 
 from data.storage.db import init_db
-from backtest.data_loader import load_price_matrix, load_benchmark
+from backtest.data_loader import load_price_matrix, load_benchmark, load_mv_matrix
 from backtest.engine import BacktestEngine, TradeConfig
 from backtest.strategies import (
-    momentum_strategy, institution_equal_strategy, multi_factor_strategy
+    momentum_strategy, institution_equal_strategy, multi_factor_strategy,
+    small_cap_strategy,
 )
 from backtest.factor_builder import build_factor_scores
 from backtest.report import print_report, save_nav_csv, compare_strategies
@@ -37,6 +38,8 @@ def run_backtest(
     freq:          str = "Q",
     top_n:         int = 25,
     initial_capital: float = 1_000_000,
+    mv_min: float = 200_000,   # 微市值策略下限（万元），默认 20亿
+    mv_max: float = 300_000,   # 微市值策略上限（万元），默认 30亿
 ):
     init_db()
 
@@ -45,6 +48,11 @@ def run_backtest(
     # ── 加载数据 ──────────────────────────────────────────
     price_df  = load_price_matrix(start_date=start_date, end_date=end_date, min_days=200)
     benchmark = load_benchmark("000300.SH", start_date, end_date)
+
+    # 微市值策略需要市值矩阵（其他策略跳过以节省内存）
+    mv_df = pd.DataFrame()
+    if strategy_name in ("all", "smallcap"):
+        mv_df = load_mv_matrix(start_date=start_date, end_date=end_date)
 
     if price_df.empty:
         print("价格数据为空，请先运行数据采集")
@@ -55,6 +63,19 @@ def run_backtest(
 
     config  = TradeConfig()
     results = {}
+
+    # ── 策略：微市值轮动（20~30亿，最小5只，每5交易日换仓）────
+    if strategy_name in ("all", "smallcap"):
+        if mv_df.empty:
+            print("\n⚠ 微市值策略跳过：daily_basic 无市值数据")
+        else:
+            print(f"\n▶ 运行微市值轮动策略（{mv_min/10000:.0f}~{mv_max/10000:.0f}亿，Top{top_n}，每5交易日调仓）...")
+            engine = BacktestEngine(price_df, benchmark, initial_capital, config, rebalance_freq=5)
+            strat  = small_cap_strategy(mv_df, top_n=top_n, mv_min=mv_min, mv_max=mv_max)
+            port   = engine.run(strat)
+            print_report(port, benchmark, f"微市值策略({mv_min/10000:.0f}~{mv_max/10000:.0f}亿 Top{top_n})")
+            save_nav_csv(port, benchmark, "data/nav_smallcap.csv")
+            results["微市值策略"] = port
 
     # ── 预构建多因子矩阵（供多因子策略使用）──────────────────
     factor_scores = None
@@ -111,13 +132,15 @@ def run_backtest(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="策略回测")
     parser.add_argument("--strategy", default="all",
-                        choices=["all", "momentum", "institution", "multifactor"],
+                        choices=["all", "momentum", "institution", "multifactor", "smallcap"],
                         help="运行的策略")
     parser.add_argument("--start", default="20190101", help="回测开始日期")
     parser.add_argument("--end",   default="20261231", help="回测结束日期")
     parser.add_argument("--freq",  default="Q", choices=["M", "Q"], help="调仓频率")
     parser.add_argument("--top",   type=int, default=25, help="持仓数量")
     parser.add_argument("--capital", type=float, default=1_000_000, help="初始资金")
+    parser.add_argument("--mv-min", type=float, default=200_000, help="微市值策略市值下限（万元），默认20亿")
+    parser.add_argument("--mv-max", type=float, default=300_000, help="微市值策略市值上限（万元），默认30亿")
     args = parser.parse_args()
 
     run_backtest(
@@ -127,4 +150,6 @@ if __name__ == "__main__":
         freq=args.freq,
         top_n=args.top,
         initial_capital=args.capital,
+        mv_min=args.mv_min,
+        mv_max=args.mv_max,
     )

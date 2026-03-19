@@ -229,8 +229,14 @@ class BacktestEngine:
         self._rebal_dates = self._build_rebal_dates()
 
     def _build_rebal_dates(self) -> List[date]:
-        """生成调仓日历（每月/季最后一个交易日）"""
+        """生成调仓日历（每月/季末最后交易日，或每 N 个交易日）"""
         dates = pd.DatetimeIndex(self.price_df.index)
+
+        # 整数频率：每 N 个交易日调仓一次（从第一天开始）
+        if isinstance(self.freq, int):
+            all_dates = [d.date() for d in dates]
+            return all_dates[::self.freq]
+
         if self.freq == "M":
             grouped = dates.to_period("M")
         else:

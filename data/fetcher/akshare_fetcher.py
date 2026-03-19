@@ -213,6 +213,97 @@ def get_financial_indicator(symbol: str) -> pd.DataFrame:
     return df
 
 
+def get_daily_basic_snapshot() -> pd.DataFrame:
+    """
+    获取全市场当日市值快照（一次 API 调用，覆盖全部 A 股）
+    返回字段: ts_code, trade_date, total_mv(万元), circ_mv(万元),
+              turnover_rate, pe_ttm, pb
+    """
+    df = _retry(lambda: ak.stock_zh_a_spot_em(), retries=3, delay=2.0)
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    col_map = {
+        "代码":     "symbol",
+        "总市值":   "total_mv",   # 东方财富返回单位：元
+        "流通市值": "circ_mv",
+        "换手率":   "turnover_rate",
+        "市盈率-动态": "pe_ttm",
+        "市净率":   "pb",
+    }
+    df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+    keep = [c for c in ["symbol", "total_mv", "circ_mv", "turnover_rate", "pe_ttm", "pb"] if c in df.columns]
+    df = df[keep].copy()
+
+    df["ts_code"] = df["symbol"].apply(
+        lambda x: f"{x}.SH" if str(x).startswith("6") else f"{x}.SZ"
+    )
+    df["trade_date"] = date.today()
+
+    # 东方财富总市值单位是元，转换为万元
+    for col in ["total_mv", "circ_mv"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce") / 10_000
+
+    return df.dropna(subset=["total_mv"])
+
+
+def get_daily_basic_history(symbol: str, start_date: str = "20150101") -> pd.DataFrame:
+    """
+    获取单只股票历史每日总市值。
+    数据来源：新浪 stock_zh_a_daily（与 stock_daily 同源），
+    返回字段 outstanding_share（总股本，股）和不复权收盘价，
+    计算公式：
+        total_mv(万元) = outstanding_share(股) × close_不复权(元) / 10000
+        circ_mv ≈ total_mv（以总股本近似，误差小）
+        turnover_rate = turnover × 100（%）
+    """
+    ts_code = f"{symbol}.SH" if symbol.startswith("6") else f"{symbol}.SZ"
+    prefix  = "sh" if symbol.startswith("6") else "sz"
+    ak_symbol = f"{prefix}{symbol}"
+
+    try:
+        # adjust='' 获取不复权价格，用于计算真实市值
+        df = _retry(lambda: ak.stock_zh_a_daily(
+            symbol=ak_symbol, adjust="",
+        ), retries=3, delay=1.0)
+    except Exception:
+        return pd.DataFrame()
+
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    # 新浪返回: date, open, high, low, close, volume, amount, outstanding_share, turnover
+    df = df.rename(columns={
+        "date":              "trade_date",
+        "close":             "close",
+        "volume":            "vol",
+        "outstanding_share": "outstanding_share",  # 总股本（股）
+        "turnover":          "turnover_rate_raw",   # 换手率（小数，如 0.0037）
+    })
+
+    df["trade_date"] = pd.to_datetime(df["trade_date"]).dt.date
+    start_d = pd.to_datetime(start_date).date()
+    df = df[df["trade_date"] >= start_d]
+
+    for col in ["close", "outstanding_share", "turnover_rate_raw"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # 总市值(万元) = 总股本(股) × 不复权收盘价(元) / 10000
+    valid = (df["outstanding_share"] > 0) & (df["close"] > 0)
+    df["total_mv"] = float("nan")
+    df.loc[valid, "total_mv"] = (
+        df.loc[valid, "outstanding_share"] * df.loc[valid, "close"] / 10_000
+    )
+    df["circ_mv"]       = df["total_mv"]
+    df["turnover_rate"] = df.get("turnover_rate_raw", float("nan")) * 100  # 转为 %
+
+    df["ts_code"] = ts_code
+    keep = ["ts_code", "trade_date", "close", "turnover_rate", "total_mv", "circ_mv"]
+    return df[[c for c in keep if c in df.columns]].dropna(subset=["trade_date", "total_mv"])
+
+
 def get_fund_list(market: str = "E") -> pd.DataFrame:
     """
     获取公募基金列表
